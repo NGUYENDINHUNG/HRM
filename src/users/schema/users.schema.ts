@@ -16,6 +16,8 @@ export class User {
 
   @Prop()
   age: number;
+   @Prop()
+  avatar: string;
 
   @Prop()
   gender: string;
@@ -24,10 +26,14 @@ export class User {
   address: string;
 
   @Prop()
-  phone: number;
+  phone: string;
 
   @Prop()
   refreshToken: string;
+  @Prop()
+  deletedAt: Date;
+  @Prop()
+  isDeleted: Boolean;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
