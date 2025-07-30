@@ -16,7 +16,7 @@ export class User {
 
   @Prop()
   age: number;
-   @Prop()
+  @Prop()
   avatar: string;
 
   @Prop()
@@ -27,6 +27,14 @@ export class User {
 
   @Prop()
   phone: string;
+  @Prop({ default: false })
+  isActive: boolean;
+
+  @Prop()
+  codeId: string;
+
+  @Prop()
+  codeExpired: Date;
 
   @Prop()
   refreshToken: string;

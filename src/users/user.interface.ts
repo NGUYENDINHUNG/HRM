@@ -1,5 +1,6 @@
+import { Types } from 'mongoose';
 export interface IUser {
-    _id: string;
+  _id:  string;
   email: string;
   name: string;
   phone: string;

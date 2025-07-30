@@ -7,10 +7,9 @@ export class UploadFileService {
   private s3_client: S3Client;
 
   constructor(private readonly configService: ConfigService) {
-    const region = this.configService.getOrThrow<string>('S3.region');
-    const accessKeyId = this.configService.getOrThrow<string>('S3.accessKeyId');
-    const secretAccessKey =
-      this.configService.getOrThrow<string>('S3.secretAccessKey');
+    const region = this.configService.getOrThrow<string>('AWS_REGION');
+    const accessKeyId = this.configService.getOrThrow<string>('AWS_ACCESS_KEY_ID');
+    const secretAccessKey =this.configService.getOrThrow<string>('AWS_SECRET_ACCESS_KEY');
 
     this.s3_client = new S3Client({
       region,
@@ -25,7 +24,7 @@ export class UploadFileService {
     path: string,
     { file, file_name }: { file: Buffer; file_name: string },
   ) {
-    const bucket_name = this.configService.getOrThrow<string>('S3.bucket');
+    const bucket_name = this.configService.getOrThrow<string>('AWS_S3_BUCKET');
     const key = file_name;
 
     await this.s3_client.send(

@@ -7,19 +7,19 @@ import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { softDeletePlugin } from 'soft-delete-plugin-mongoose';
 import { UploadFilesModule } from './upload-files/upload-files.module';
-import { appConfig } from './config/jwt.config';
-import { S3Config } from './config/s3.config';
+import { MailerModule } from '@nestjs-modules/mailer';
+import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
+
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, S3Config],
     }),
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (config: ConfigService) => ({
-        uri: config.get<string>('db.uri'),
+        uri: config.get<string>('DB_URI'),
         connectionFactory: (connection) => {
           connection.plugin(softDeletePlugin);
           return connection;
@@ -30,6 +30,33 @@ import { S3Config } from './config/s3.config';
     UsersModule,
     AuthModule,
     UploadFilesModule,
+     MailerModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        transport: {
+          host:  configService.get<string>('EMAIL_HOST'),
+          port:  configService.get<string>('EMAIL_PORT'),
+          secure: true,
+          auth: {
+            user: configService.get<string>('EMAIL_USERNAME'),
+            pass: configService.get<string>('EMAIL_PASSWORD'),
+          },
+        },
+        defaults: {
+          from: '"No Reply" <no-reply@localhost>',
+        },
+        // preview: true,
+        template: {
+          dir: process.cwd() + '/src/mail/templates/',
+          adapter: new HandlebarsAdapter(), // or new PugAdapter() or new EjsAdapter()
+          options: {
+            strict: true,
+          },
+        },
+      }),
+      inject: [ConfigService],
+
+    }),
   ],
   controllers: [AppController],
   providers: [AppService],

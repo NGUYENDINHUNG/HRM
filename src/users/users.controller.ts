@@ -8,13 +8,15 @@ import {
   Delete,
   UseInterceptors,
   UploadedFile,
+  NotFoundException,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { ResponseMessage, User } from 'src/common/decorator/customize';
+import { Public, ResponseMessage, User } from 'src/common/decorator/customize';
 import { IUser } from './user.interface';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UploadFileService } from 'src/upload-files/upload-files.service';
+import { RequestTokenDto } from './dto/requestToken.dto';
 
 @Controller('users')
 export class UsersController {

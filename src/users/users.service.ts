@@ -6,14 +6,16 @@ import {
 import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { User, UserDocument } from './schema/users.schema';
-import mongoose from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { SoftDeleteModel } from 'soft-delete-plugin-mongoose';
+import { ConfigService } from '@nestjs/config';
+import { IUser } from './user.interface';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectModel(User.name) private userModel: SoftDeleteModel<UserDocument>,
+    private readonly configService: ConfigService,
   ) {}
 
   hashPassword = (password: string) => {
@@ -67,4 +69,14 @@ export class UsersService {
   FindUserByToken = async (refreshToken: string) => {
     return await this.userModel.findOne({ refreshToken });
   };
+  //find by email
+  async findByEmail(email: string): Promise<IUser | null> {
+    const user = await this.userModel.findOne({ email }).lean().exec();
+    if (!user) return null;
+
+    return {
+      ...user,
+      _id: user._id.toString(),
+    };
+  }
 }

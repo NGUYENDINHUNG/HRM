@@ -7,16 +7,21 @@ import { ConfigService } from '@nestjs/config';
 import { SoftDeleteModel } from 'soft-delete-plugin-mongoose';
 import {
   BadRequestException,
-  HttpException,
   Injectable,
   InternalServerErrorException,
-  NotFoundException,
 } from '@nestjs/common';
 import { User, UserDocument } from 'src/users/schema/users.schema';
-import { RegisterusersDto } from 'src/users/dto/create-user.dto';
+import {
+  ChangePasswordAuthDto,
+  CodeAuthDto,
+  RegisterusersDto,
+} from 'src/users/dto/create-user.dto';
 import { UsersService } from 'src/users/users.service';
 import { IUser } from 'src/users/user.interface';
-import { log } from 'console';
+import { v4 as uuidv4 } from 'uuid';
+import dayjs from 'dayjs';
+import { MailerService } from '@nestjs-modules/mailer';
+import { hashPasswordHelper } from 'src/helper/ultil';
 
 @Injectable()
 export class AuthService {
@@ -26,6 +31,7 @@ export class AuthService {
     private usersService: UsersService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private readonly mailerService: MailerService,
   ) {}
   async validateUser(email: string, pass: string): Promise<any> {
     const user = await this.usersService.findOneUserName(email);
@@ -49,7 +55,109 @@ export class AuthService {
     const hash = bcrypt.hashSync(password, salt);
     return hash;
   };
+  isEmailExist = async (email: string) => {
+    const user = await this.userModel.exists({ email });
+    if (user) return true;
+    return false;
+  };
 
+  async registers(registerDto: RegisterusersDto) {
+    const { name, email, password } = registerDto;
+
+    //check email
+    const isExist = await this.isEmailExist(email);
+    if (isExist === true) {
+      throw new BadRequestException(
+        `Email đã tồn tại: ${email}. Vui lòng sử dụng email khác.`,
+      );
+    }
+
+    //hash password
+    const hashPassword = this.hashPassword(password);
+    const codeId = uuidv4();
+    const user = await this.userModel.create({
+      name,
+      email,
+      password: hashPassword,
+      isActive: false,
+      codeId: codeId,
+      codeExpired: dayjs().add(5, 'minutes'),
+    });
+
+    //send email
+    this.mailerService.sendMail({
+      to: user.email, // list of receivers
+      subject: 'Activate your account ', // Subject line
+      template: 'register',
+      context: {
+        name: user?.name ?? user.email,
+        activationCode: codeId,
+      },
+    });
+    //trả ra phản hồi
+    return {
+      _id: user._id,
+    };
+  }
+
+  async handleActive(data: CodeAuthDto) {
+    const user = await this.userModel.findOne({
+      _id: data._id,
+      codeId: data.code,
+    });
+    if (!user) {
+      throw new BadRequestException('Mã code không hợp lệ hoặc đã hết hạn');
+    }
+
+    //check expire code
+    const isBeforeCheck = dayjs().isBefore(user.codeExpired);
+
+    if (isBeforeCheck) {
+      //valid => update user
+      await this.userModel.updateOne(
+        { _id: data._id },
+        {
+          isActive: true,
+        },
+      );
+      return { isBeforeCheck };
+    } else {
+      throw new BadRequestException('Mã code không hợp lệ hoặc đã hết hạn');
+    }
+  }
+
+  async retryActive(email: string) {
+    //check email
+    const user = await this.userModel.findOne({ email });
+
+    if (!user) {
+      throw new BadRequestException('Tài khoản không tồn tại');
+    }
+    if (user.isActive) {
+      throw new BadRequestException('Tài khoản đã được kích hoạt');
+    }
+
+    //send Email
+    const codeId = uuidv4();
+
+    //update user
+    await user.updateOne({
+      codeId: codeId,
+      codeExpired: dayjs().add(5, 'minutes'),
+    });
+
+    //send email
+    this.mailerService.sendMail({
+      to: user.email, // list of receivers
+      subject: 'Activate your account at @hoidanit', // Subject line
+      template: 'register',
+      context: {
+        name: user?.name ?? user.email,
+        activationCode: codeId,
+      },
+    });
+    return { _id: user._id };
+  }
   async login(user: IUser, response: Response) {
     const { _id, name, email } = user;
     const payload = {
@@ -64,12 +172,12 @@ export class AuthService {
 
       // Set cookie
 
-        response.cookie('refresh_token', refresh_token, {
-          httpOnly: true,
-          maxAge: (ms as any)(
-            this.configService.getOrThrow<string>('JWT_REFRESH_EXPIRE'),
-          ),
-        });
+      response.cookie('refresh_token', refresh_token, {
+        httpOnly: true,
+        maxAge: (ms as any)(
+          this.configService.getOrThrow<string>('JWT_REFRESH_EXPIRE'),
+        ),
+      });
 
       return {
         access_token: this.jwtService.sign(payload),
@@ -78,35 +186,6 @@ export class AuthService {
       console.error('Lỗi đăng nhập:', error);
       throw new InternalServerErrorException(
         'Đăng nhập thất bại, vui lòng thử lại sau.',
-      );
-    }
-  }
-
-  async registers(user: RegisterusersDto) {
-    try {
-      const { name, email, password, address } = user;
-
-      const Usersexis = await this.userModel.findOne({ email });
-      if (Usersexis) {
-        throw new BadRequestException(`Email ${email} đã tồn tại`);
-      }
-
-      const hashPassword = this.hashPassword(password);
-
-      const Newuser = await this.userModel.create({
-        name,
-        email,
-        address,
-        password: hashPassword,
-      });
-
-      return Newuser;
-    } catch (error) {
-      if (error instanceof HttpException) {
-        throw error;
-      }
-      throw new InternalServerErrorException(
-        'Đăng ký thất bại, vui lòng thử lại',
       );
     }
   }
@@ -149,10 +228,64 @@ export class AuthService {
       throw new BadRequestException(`token đã hết hạn`);
     }
   }
-
   async logout(response: Response, user: IUser) {
     await this.usersService.updateUserToken('', user._id);
     response.clearCookie('refresh_token');
     return 'ok';
+  }
+  async retryPassword(email: string) {
+    //check email
+    const user = await this.userModel.findOne({ email });
+
+    if (!user) {
+      throw new BadRequestException('Tài khoản không tồn tại');
+    }
+
+    //send Email
+    const codeId = uuidv4();
+
+    //update user
+    await user.updateOne({
+      codeId: codeId,
+      codeExpired: dayjs().add(5, 'minutes'),
+    });
+
+    //send email
+    this.mailerService.sendMail({
+      to: user.email, // list of receivers
+      subject: 'Change your password account', // Subject line
+      template: 'register',
+      context: {
+        name: user?.name ?? user.email,
+        activationCode: codeId,
+      },
+    });
+    return { _id: user._id, email: user.email };
+  }
+  async changePassword(data: ChangePasswordAuthDto) {
+    if (data.confirmPassword !== data.password) {
+      throw new BadRequestException(
+        'Mật khẩu/xác nhận mật khẩu không chính xác.',
+      );
+    }
+
+    //check email
+    const user = await this.userModel.findOne({ email: data.email });
+
+    if (!user) {
+      throw new BadRequestException('Tài khoản không tồn tại');
+    }
+
+    //check expire code
+    const isBeforeCheck = dayjs().isBefore(user.codeExpired);
+
+    if (isBeforeCheck) {
+      //valid => update password
+      const newPassword = await hashPasswordHelper(data.password);
+      await user.updateOne({ password: newPassword });
+      return { isBeforeCheck };
+    } else {
+      throw new BadRequestException('Mã code không hợp lệ hoặc đã hết hạn');
+    }
   }
 }

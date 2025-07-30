@@ -10,13 +10,21 @@ import {
 import { AuthService } from './auth.service';
 import { Public, ResponseMessage, User } from 'src/common/decorator/customize';
 import { LocalAuthGuard } from 'src/common/guards/local-auth.guard';
-import { RegisterusersDto } from 'src/users/dto/create-user.dto';
+import {
+  ChangePasswordAuthDto,
+  CodeAuthDto,
+  RegisterusersDto,
+} from 'src/users/dto/create-user.dto';
 import { Request, Response } from 'express';
 import { IUser } from 'src/users/user.interface';
+import { MailerService } from '@nestjs-modules/mailer';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+    private mailerService: MailerService,
+  ) {}
 
   @Public()
   @UseGuards(LocalAuthGuard)
@@ -43,6 +51,29 @@ export class AuthController {
     return this.authService.processNewToken(refreshToken, response);
   }
 
+  @Post('check-code')
+  @Public()
+  checkCode(@Body() registerDto: CodeAuthDto) {
+    return this.authService.handleActive(registerDto);
+  }
+
+  @Post('retry-active')
+  @Public()
+  retryActive(@Body('email') email: string) {
+    return this.authService.retryActive(email);
+  }
+  @ResponseMessage('đã gửi otp đến email')
+  @Post('retry-password')
+  @Public()
+  retryPassword(@Body('email') email: string) {
+    return this.authService.retryPassword(email);
+  }
+  @ResponseMessage('dổi mật khẩu thành công')
+  @Post('change-password')
+  @Public()
+  changePassword(@Body() data: ChangePasswordAuthDto) {
+    return this.authService.changePassword(data);
+  }
   @ResponseMessage('đăng xuất thành công')
   @Post('/logout')
   handleLogout(

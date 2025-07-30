@@ -18,6 +18,6 @@ async function bootstrap() {
   app.useGlobalInterceptors(new TransformInterceptor(reflector));
   app.useGlobalGuards(new JwtAuthGuard(reflector));
 
-  await app.listen(configService.get('app.port') || 3000);
+  await app.listen(configService.get('PORT') || 3000);
 }
 bootstrap();

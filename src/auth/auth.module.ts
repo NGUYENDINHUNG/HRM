@@ -8,13 +8,15 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtStrategy } from './passport/jwt.strategy';
 import { AuthController } from './auth.controller';
 import { MongooseModule } from '@nestjs/mongoose';
-import { User }  from 'src/common/decorator/customize';
+import { User } from 'src/common/decorator/customize';
 import { UserSchema } from 'src/users/schema/users.schema';
+import { MailerModule } from '@nestjs-modules/mailer';
 
 @Module({
   imports: [
     UsersModule,
     PassportModule,
+    MailerModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
